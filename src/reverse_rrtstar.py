@@ -31,25 +31,25 @@ def shift_point(x, y, xlim, ylim):
 
 class RRT_Solver:
     tree = []
-    obstacle_list = []  # list of shapely objects
-    obstacles = None    # STRtree of shapely objects
+    obstacle_list = []      # list of shapely objects
+    obstacles = None        # STRtree of shapely objects
 
-    path = []           # list of path coordinate points ([x, y])
+    path = []               # list of path coordinate points ([x, y])
 
-    start: Node        # node
+    start: Node             # node
     goal_geo: BaseGeometry  # shapely polygon
     goal: Node
 
-    XLIMIT = []         # [min_x, max_x]
-    XDIM = 0            # difference between x limits
-    YLIMIT = []         # [min_y, max_y]
-    YDIM = 0            # difference between y limits
+    XLIMIT = []             # [min_x, max_x]
+    XDIM = 0                # difference between x limits
+    YLIMIT = []             # [min_y, max_y]
+    YDIM = 0                # difference between y limits
 
-    EPSILON = 0         # stepsize
-    NUMNODES = 0        # number of random samples
-    RADIUS = 0          # radius to be considered a neighbor
+    EPSILON = 0             # stepsize
+    NUMNODES = 0            # number of random samples
+    RADIUS = 0              # radius to be considered a neighbor
 
-    ROBOTRADIUS = 2   # robots size assuming its a circle
+    ROBOTRADIUS = 2         # robots size assuming its a circle
 
     def __init__(
         self,
@@ -64,13 +64,14 @@ class RRT_Solver:
         radius=1,
         startstate = None
     ):
-        self.start = Node(startstate[0], startstate[1])
+        if startstate != None:
+            self.start = Node(startstate[0], startstate[1])
         self.goal_geo = goalregion
         goal_center = self.goal_geo.centroid
         self.goal = Node(goal_center.x, goal_center.y)
         self.tree.append(
-            self.start
-        )  # Initialize tree with start state
+            self.goal
+        )  # Initialize tree with goal state
         self.obstacle_list = obstacle_list
         self.obstacles = obstacles
         self.XLIMIT = xlim
@@ -81,6 +82,10 @@ class RRT_Solver:
         self.EPSILON = epsilon
         self.RADIUS = radius
         self.ROBOTRADIUS = robot_radius
+
+    def set_start(self, startstate):
+        self.start = Node(startstate[0], startstate[1])
+
 
     def get_random_node(self) -> Node:
         rand_x = random.random() * self.XDIM + self.XLIMIT[0]
@@ -137,28 +142,32 @@ class RRT_Solver:
 
     def check_goal_reachable(self, pygame, screen) -> bool:
         print("[INFO]\tChecking if goal reached: ...")
+        if self.start == None:
+            print("[INFO]\t... Start is not defined!\r\n")
+            return False
         nn = self.tree[0]
+        # choose closest node TODO chose n closest nodes
         for p in self.tree:
-            if distance(p, self.goal) < distance(nn, self.goal):
+            if distance(p, self.start) < distance(nn, self.start):
                 nn = p
-
-        if self.collision_check(nn, self.goal):
-            self.goal.cost = nn.cost + distance(nn, self.goal)
-            self.goal.set_parent(nn)
-            self.tree.append(self.goal)
+        # compute if path is feasible TODO check which of the paths is the shortest by adding cost from node and distance to start
+        if self.collision_check(nn, self.start):
+            self.start.cost = nn.cost + distance(nn, self.start)
+            self.start.set_parent(nn)
+            self.tree.append(self.start)
             print("[INFO]\t... reached goal sucessfully!\r\n")
 
-            self.construct_path(self.goal, pygame, screen)
+            self.construct_path(self.start, pygame, screen)
             return True
         else:
             # No path to obstacle found!
             return False
 
-    def construct_path(self, goal_node, pygame, screen):
+    def construct_path(self, start_node, pygame, screen):
         print("[INFO]\tConstructing path: ...")
-        current_node = goal_node
+        current_node = start_node
         i = 1
-        while current_node != self.start:
+        while current_node != self.goal:
             x = current_node.x
             y = current_node.y
             pygame.draw.line(screen, colors.PINK, shift_point(x, y, self.XLIMIT, self.YLIMIT), shift_point(current_node.parent.x, current_node.parent.y, self.XLIMIT, self.YLIMIT), 3)
@@ -189,8 +198,29 @@ class RRT_Solver:
             print(f"\t{i} iterations complete", end="\r")
         print(f"[INFO]\t... {iter} additional iterations complete!\r\n")
         return self.check_goal_reachable(pygame, screen)
+    
+    def solve(self, pygame, screen, start = None):
+        if start != None:
+            self.set_start(start)
 
-    def solve(self, pygame, screen):
+        if len(self.tree) < 2:
+            self.build_tree(pygame, screen)
+
+        if self.start != None:
+            if self.check_goal_reachable(pygame, screen):
+                return True
+            else:
+                print("[INFO]\t... Path not yet found starting additional iterations: ...")
+                for j in range(3):
+                    if self.extend_tree(200, pygame, screen):
+                        return True
+                return False  
+        print("[WARNING]\t... No start defined!")
+        return False
+
+        
+
+    def build_tree(self, pygame, screen):
         print("[INFO]\tStart building the RRt* tree: ...")
         for i in range(self.NUMNODES):
             random_node = self.get_random_node()
@@ -209,11 +239,3 @@ class RRT_Solver:
                 pygame.display.update()
             print(f"\t{i} iterations complete", end="\r")
         print(f"[INFO]\t... {self.NUMNODES} iterations complete!\r\n")
-
-        if not self.check_goal_reachable(pygame, screen):
-            print("[INFO]\t... Path not yet found starting additional iterations: ...")
-            for j in range(3):
-                if self.extend_tree(200, pygame, screen):
-                    return True
-            return False  
-        return True
