@@ -42,10 +42,11 @@ def run_planner(screen, start, goal, goal_radius, shapely_obstacles, obstacles, 
     pygame.draw.circle(screen, green, shifted_start, 2, 2)
     pygame.display.update()
 
-    solver = RRT_Solver(shapely.Point(goal).buffer(goal_radius), [bounds[0], bounds[2]], [bounds[1], bounds[3]], shapely_obstacles, obstacles, 10, 500, 20, 100, start)
+    solver = RRT_Solver(shapely.Point(goal).buffer(goal_radius), [bounds[0], bounds[2]], [bounds[1], bounds[3]], obstacles, 10, 500, 20, 100, start)
     if not solver.solve(pygame, screen):
         print("ERROR\tNo valid path found!")
-
+    else:
+        print(f"\tFound path:\t{solver.path}")
     return
 
 obstacle_list, shapely_obstacles, boundary, bounds, win_size, agents_dict = read_config_from_yaml("config/config_2.yaml")
