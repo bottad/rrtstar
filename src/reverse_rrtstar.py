@@ -1,6 +1,7 @@
 import random, math
 from math import sqrt, cos, sin, atan2
 import shapely
+import heapq
 
 from shapely.geometry.base import BaseGeometry
 
@@ -89,6 +90,27 @@ class RRT_Solver:
         rand_y = random.random() * self.YDIM + self.YLIMIT[0]
 
         return Node(rand_x, rand_y)
+    
+    def get_nearest_neighbors_to_start(self, n):
+        nn_heap = []  # Min heap to store the n closest neighbors
+        heapq.heapify(nn_heap)
+
+        for p in self.tree:
+            dist = distance(p, self.start)
+
+            if len(nn_heap) < n:
+                heapq.heappush(nn_heap, (-dist, p))
+            else:
+                # If the distance is smaller than the largest distance in the heap,
+                # replace the largest distance with the current point
+                if dist < -nn_heap[0][0]:
+                    heapq.heappop(nn_heap)
+                    heapq.heappush(nn_heap, (-dist, p))
+
+        # Extract the points from the heap
+        n_closest_neighbors = [point for (_, point) in nn_heap]
+
+        return n_closest_neighbors
 
     def take_step(self, n1: Node, n2: Node):
         if distance(n1, n2) < self.EPSILON:
@@ -138,19 +160,27 @@ class RRT_Solver:
                 pygame.draw.line(screen, colors.BLACK, shift_point(p.x,p.y, self.XLIMIT, self.YLIMIT), shift_point(newnode.x, newnode.y, self.XLIMIT, self.YLIMIT))
 
     def check_goal_reachable(self, pygame, screen) -> bool:
+        found_path = False
         print("[INFO]\tChecking if goal reached: ...")
         if self.start == None:
             print("[INFO]\t... Start is not defined!\r\n")
             return False
-        nn = self.tree[0]
-        # choose closest node TODO chose n closest nodes
-        for p in self.tree:
-            if distance(p, self.start) < distance(nn, self.start):
-                nn = p
-        # compute if path is feasible TODO check which of the paths is the shortest by adding cost from node and distance to start
-        if self.collision_check(nn, self.start):
-            self.start.cost = nn.cost + distance(nn, self.start)
-            self.start.set_parent(nn)
+        # choose n closest nodes
+        nearest_neighbors = self.get_nearest_neighbors_to_start(10)
+        # check which of the paths is the shortest by adding cost from node and distance to start
+        min_cost = float('inf')
+        best_neigbor = None
+        for nn in nearest_neighbors:
+            if self.collision_check(nn, self.start):
+                proposed_cost = nn.cost + distance(nn, self.start)
+                if proposed_cost < min_cost:
+                    min_cost = proposed_cost
+                    best_neigbor = nn
+                    found_path = True
+
+        if found_path:
+            self.start.cost = min_cost
+            self.start.set_parent(best_neigbor)
             self.tree.append(self.start)
             print("[INFO]\t... reached goal sucessfully!\r\n")
 
