@@ -19,7 +19,7 @@ pip install -r requirements.txt
 
 ## Use
 
-Define your map configuration in a config.yaml file in the config folder and choose your config file in the main file code, then run the main file.
+Define your map configuration in a config.yaml file in the config folder and choose your config file in the main file code. Also deside on whether to import rrtstar.py or reverse_rrtstar in main.py, to eighter start the tree generation from the start or the goal. Then run the main file as follows:
 
 ```
 python src/main.py
