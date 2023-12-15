@@ -31,7 +31,6 @@ def shift_point(x, y, xlim, ylim):
 
 class RRT_Solver:
     tree = []
-    obstacle_list = []  # list of shapely objects
     obstacles = None    # STRtree of shapely objects
 
     path = []           # list of path coordinate points ([x, y])
@@ -56,7 +55,6 @@ class RRT_Solver:
         goalregion: BaseGeometry,
         xlim: [int, int],
         ylim: [int, int],
-        obstacle_list: list,
         obstacles: shapely.STRtree,
         robot_radius: float,
         num_nodes=2000,
@@ -71,7 +69,6 @@ class RRT_Solver:
         self.tree.append(
             self.start
         )  # Initialize tree with start state
-        self.obstacle_list = obstacle_list
         self.obstacles = obstacles
         self.XLIMIT = xlim
         self.XDIM = xlim[1] - xlim[0]
@@ -167,6 +164,9 @@ class RRT_Solver:
             i += 1
             pygame.display.update()
             current_node = current_node.parent
+        self.path.append((current_node.x, current_node.y))
+        print(f"\tComputed {i} path segments", end="\r")
+        self.path.reverse()
         print("                                        ", end="\r")
         print("[INFO]\t... complete!\r\n")
 
