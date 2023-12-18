@@ -3,6 +3,7 @@ from math import sqrt, cos, sin, atan2
 import shapely
 import heapq
 from scipy import spatial
+import numpy as np
 
 from shapely.geometry.base import BaseGeometry
 
@@ -33,25 +34,25 @@ def shift_point(x, y, xlim, ylim):
 
 class RRT_Solver:
     tree = []
-    kdtree: spatial.cKDTree # KDtree to store the sampled points
-    obstacles = None        # STRtree of shapely objects
+    kdtree: spatial.cKDTree     # KDtree to store the sampled points
+    obstacles: shapely.STRtree  # STRtree of shapely objects
 
-    path = []               # list of path coordinate points ([x, y])
+    path = []                   # list of path coordinate points ([x, y])
 
-    start: Node             # node
-    goal_geo: BaseGeometry  # shapely polygon
+    start: Node                 # node
+    goal_geo: BaseGeometry      # shapely polygon
     goal: Node
 
-    XLIMIT = []             # [min_x, max_x]
-    XDIM = 0                # difference between x limits
-    YLIMIT = []             # [min_y, max_y]
-    YDIM = 0                # difference between y limits
+    XLIMIT = []                 # [min_x, max_x]
+    XDIM = 0                    # difference between x limits
+    YLIMIT = []                 # [min_y, max_y]
+    YDIM = 0                    # difference between y limits
 
-    EPSILON = 0             # stepsize
-    NUMNODES = 0            # number of random samples
-    RADIUS = 0              # radius to be considered a neighbor
+    EPSILON = 0                 # stepsize
+    NUMNODES = 0                # number of random samples
+    RADIUS = 0                  # radius to be considered a neighbor
 
-    ROBOTRADIUS = 2         # robots size assuming its a circle
+    ROBOTRADIUS = 2             # robots size assuming its a circle
 
     def __init__(
         self,
@@ -74,7 +75,7 @@ class RRT_Solver:
         self.tree.append(
             self.goal
         )
-        self.kdtree = spatial.cKDTree([goal_center])
+        self.kdtree = spatial.cKDTree([[goal_center.x, goal_center.y]])
         self.obstacles = obstacles
         self.XLIMIT = xlim
         self.XDIM = xlim[1] - xlim[0]
@@ -96,25 +97,11 @@ class RRT_Solver:
         return Node(rand_x, rand_y)
     
     def get_nearest_neighbors_to_start(self, n):
-        nn_heap = []  # Min heap to store the n closest neighbors
-        heapq.heapify(nn_heap)
+        _, indices = self.kdtree.query([self.start.x, self.start.y], n)
 
-        for p in self.tree:
-            dist = distance(p, self.start)
-
-            if len(nn_heap) < n:
-                heapq.heappush(nn_heap, (-dist, p))
-            else:
-                # If the distance is smaller than the largest distance in the heap,
-                # replace the largest distance with the current point
-                if dist < -nn_heap[0][0]:
-                    heapq.heappop(nn_heap)
-                    heapq.heappush(nn_heap, (-dist, p))
-
-        # Extract the points from the heap
-        n_closest_neighbors = [point for (_, point) in nn_heap]
-
-        return n_closest_neighbors
+        # Retrieve the nearest neighbors and their costs
+        n_nearest_neighbors = [self.tree[i] for i in indices]
+        return n_nearest_neighbors
 
     def take_step(self, n1: Node, n2: Node):
         if distance(n1, n2) < self.EPSILON:
@@ -135,32 +122,35 @@ class RRT_Solver:
         if self.obstacles.geometries.take(nearest_obstacle_index).intersects(robot):
             return False
         return True
-
+    
     def choose_parent(self, nn, newnode):
-        for p in self.tree:
-            if (
-                self.collision_check(p, newnode)
-                and distance(p, newnode) < self.RADIUS
-                and p.cost + distance(p, newnode) < nn.cost + distance(nn, newnode)
+        indices_within_radius = self.kdtree.query_ball_point([newnode.x, newnode.y], self.RADIUS)
+
+        # Retrieve the nodes within the radius
+        nodes_within_radius = [self.tree[i] for i in indices_within_radius]
+
+        for p in nodes_within_radius:
+            if (self.collision_check(p, newnode)
+            and p.cost + distance(p, newnode) < nn.cost + distance(nn, newnode)
             ):
                 nn = p
         newnode.cost = nn.cost + distance(nn, newnode)
         newnode.set_parent(nn)
         return newnode, nn
-
+    
     def re_wire(self, newnode, pygame, screen):
-        for i in range(len(self.tree)):
-            p = self.tree[i]
-            if (
-                self.collision_check(p, newnode)
+        indices_within_radius = self.kdtree.query_ball_point([newnode.x, newnode.y], self.RADIUS)
+
+        for index in indices_within_radius:
+            p = self.tree[index]
+            if (self.collision_check(p, newnode)
                 and p != newnode.parent
-                and distance(p, newnode) < self.RADIUS
                 and newnode.cost + distance(p, newnode) < p.cost
             ):
                 pygame.draw.line(screen, colors.WHITE, shift_point(p.x,p.y, self.XLIMIT, self.YLIMIT), shift_point(p.parent.x, p.parent.y, self.XLIMIT, self.YLIMIT), 2)
                 p.set_parent(newnode)
                 p.cost = newnode.cost + distance(p, newnode)
-                self.tree[i] = p
+                self.tree[index] = p
                 pygame.draw.line(screen, colors.BLACK, shift_point(p.x,p.y, self.XLIMIT, self.YLIMIT), shift_point(newnode.x, newnode.y, self.XLIMIT, self.YLIMIT))
 
     def check_goal_reachable(self, pygame, screen) -> bool:
@@ -186,6 +176,7 @@ class RRT_Solver:
             self.start.cost = min_cost
             self.start.set_parent(best_neigbor)
             self.tree.append(self.start)
+            self.build_kd_tree()
             print("[INFO]\t... reached goal sucessfully!\r\n")
 
             self.construct_path(self.start, pygame, screen)
@@ -226,6 +217,7 @@ class RRT_Solver:
                 
                 self.tree.append(newnode)
                 pygame.draw.line(screen, colors.BLACK, shift_point(nn.x, nn.y, self.XLIMIT, self.YLIMIT), shift_point(newnode.x, newnode.y, self.XLIMIT, self.YLIMIT))
+                self.build_kd_tree()
                 self.re_wire(newnode, pygame, screen)
                 pygame.display.update()
             print(f"\t{i} iterations complete", end="\r")
@@ -246,28 +238,40 @@ class RRT_Solver:
                 print("[INFO]\t... Path not yet found starting additional iterations: ...")
                 for j in range(3):
                     if self.extend_tree(200, pygame, screen):
+                        self.build_kd_tree()
                         return True
                 return False  
         print("[WARNING]\t... No start defined!")
         return False
 
-        
+    def build_kd_tree(self):
+        #print("[INFO]\tStart building the KD-tree: ...")
+        # Extract x, y coordinates from nodes and organize them into a NumPy array
+        coordinates = np.array([(node.x, node.y) for node in self.tree])
+
+        # Build cKDTree from the NumPy array
+        self.kdtree = spatial.cKDTree(coordinates)
+        #print("[INFO]\t... complete!\r\n")
 
     def build_tree(self, pygame, screen):
         print("[INFO]\tStart building the RRt* tree: ...")
         for i in range(self.NUMNODES):
             random_node = self.get_random_node()
             nn = self.tree[0]
+            # connecting to nearest neighbor
             for p in self.tree:
                 if distance(p, random_node) < distance(nn, random_node):
                     nn = p
             newnode = self.take_step(nn, random_node)
 
+            # adding connection to tree if collisionfree
             if self.collision_check(nn, random_node):
                 newnode, nn = self.choose_parent(nn, newnode)
                 
                 self.tree.append(newnode)
+                self.build_kd_tree()
                 pygame.draw.line(screen, colors.BLACK, shift_point(nn.x, nn.y, self.XLIMIT, self.YLIMIT), shift_point(newnode.x, newnode.y, self.XLIMIT, self.YLIMIT))
+                # optimize tree with respect to new Node
                 self.re_wire(newnode, pygame, screen)
                 pygame.display.update()
             print(f"\t{i} iterations complete", end="\r")

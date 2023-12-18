@@ -32,24 +32,24 @@ def shift_point(x, y, xlim, ylim):
 
 class RRT_Solver:
     tree = []
-    obstacles = None    # STRtree of shapely objects
+    obstacles: shapely.STRtree  # STRtree of shapely objects
 
-    path = []           # list of path coordinate points ([x, y])
+    path = []                   # list of path coordinate points ([x, y])
 
-    start: Node        # node
-    goal_geo: BaseGeometry  # shapely polygon
+    start: Node                 # node
+    goal_geo: BaseGeometry      # shapely polygon
     goal: Node
 
-    XLIMIT = []         # [min_x, max_x]
-    XDIM = 0            # difference between x limits
-    YLIMIT = []         # [min_y, max_y]
-    YDIM = 0            # difference between y limits
+    XLIMIT = []                 # [min_x, max_x]
+    XDIM = 0                    # difference between x limits
+    YLIMIT = []                 # [min_y, max_y]
+    YDIM = 0                    # difference between y limits
 
-    EPSILON = 0         # stepsize
-    NUMNODES = 0        # number of random samples
-    RADIUS = 0          # radius to be considered a neighbor
+    EPSILON = 0                 # stepsize
+    NUMNODES = 0                # number of random samples
+    RADIUS = 0                  # radius to be considered a neighbor
 
-    ROBOTRADIUS = 2   # robots size assuming its a circle
+    ROBOTRADIUS = 2             # robots size assuming its a circle
 
     def __init__(
         self,
@@ -227,16 +227,19 @@ class RRT_Solver:
         for i in range(self.NUMNODES):
             random_node = self.get_random_node()
             nn = self.tree[0]
+            # connecting new node with closest neighbor
             for p in self.tree:
                 if distance(p, random_node) < distance(nn, random_node):
                     nn = p
             newnode = self.take_step(nn, random_node)
 
+            # adding connection to tree if collisionfree
             if self.collision_check(nn, random_node):
                 newnode, nn = self.choose_parent(nn, newnode)
                 
                 self.tree.append(newnode)
                 pygame.draw.line(screen, colors.BLACK, shift_point(nn.x, nn.y, self.XLIMIT, self.YLIMIT), shift_point(newnode.x, newnode.y, self.XLIMIT, self.YLIMIT))
+                # optimize tree with respect to new connection
                 self.re_wire(newnode, pygame, screen)
                 pygame.display.update()
             print(f"\t{i} iterations complete", end="\r")
