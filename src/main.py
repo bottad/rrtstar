@@ -1,7 +1,7 @@
 from read_config import read_config_from_yaml
 
 ################ choose rrtstar or reverse_rrtstar to start eighter from start or goal node ##############
-from reverse_rrtstar import *
+from reverse_rrtstar_kd import *
 
 import pygame
 import shapely
@@ -30,6 +30,14 @@ def shift_start(start, bounds):
     #print(shifted_start)
     return shifted_start
 
+def back_shift_start(shifted_start, bounds):
+    start = [0, 0]
+    #print(shifted_start)
+    start[0] = shifted_start[0] + bounds[0]
+    start[1] = shifted_start[1] + bounds[1]
+    #print(start)
+    return start
+
 
 def run_planner(screen, start, goal, goal_radius, shapely_obstacles, obstacles, boundary, bounds):
     blue = (0, 0, 255)
@@ -47,7 +55,7 @@ def run_planner(screen, start, goal, goal_radius, shapely_obstacles, obstacles, 
         print("ERROR\tNo valid path found!")
     else:
         print(f"\tFound path:\t{solver.path}")
-    return
+    return solver
 
 obstacle_list, shapely_obstacles, boundary, bounds, win_size, agents_dict = read_config_from_yaml("config/config_2.yaml")
 
@@ -70,9 +78,13 @@ for agent, attribute in agents_dict.items():
     start = [x0['x'], x0['y']]
     goal = attribute["goal"]
     goal_radius = attribute["goal_radius"]
-    run_planner(screen, start, goal, goal_radius, shapely_obstacles, obstacles, boundary, bounds)
+    planner = run_planner(screen, start, goal, goal_radius, shapely_obstacles, obstacles, boundary, bounds)
     running = True
     while running:
-       for event in pygame.event.get():
-           if event.type == pygame.QUIT:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
                  running = False
+            if event.type == pygame.MOUSEBUTTONUP:
+                start = pygame.mouse.get_pos()
+                planner.set_start(back_shift_start(start, bounds))
+                planner.check_goal_reachable(pygame, screen)
