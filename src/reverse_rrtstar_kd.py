@@ -1,7 +1,6 @@
 import random, math
 from math import sqrt, cos, sin, atan2
 import shapely
-import heapq
 from scipy import spatial
 import numpy as np
 
@@ -68,6 +67,8 @@ class RRT_Solver:
     ):
         if startstate != None:
             self.start = Node(startstate[0], startstate[1])
+        else:
+            self.start = None
         self.goal_geo = goalregion
         goal_center = self.goal_geo.centroid
         self.goal = Node(goal_center.x, goal_center.y)
@@ -206,10 +207,9 @@ class RRT_Solver:
     def extend_tree(self, iter, pygame, screen) -> bool:
         for i in range(iter):
             random_node = self.get_random_node()
-            nn = self.tree[0]
-            for p in self.tree:
-                if distance(p, random_node) < distance(nn, random_node):
-                    nn = p
+            # connecting to nearest neighbor
+            _, index = self.kdtree.query([random_node.x, random_node.y], 1)
+            nn = self.tree[index]
             newnode = self.take_step(nn, random_node)
 
             if self.collision_check(nn, random_node):
@@ -257,11 +257,9 @@ class RRT_Solver:
         print("[INFO]\tStart building the RRt* tree: ...")
         for i in range(self.NUMNODES):
             random_node = self.get_random_node()
-            nn = self.tree[0]
             # connecting to nearest neighbor
-            for p in self.tree:
-                if distance(p, random_node) < distance(nn, random_node):
-                    nn = p
+            _, index = self.kdtree.query([random_node.x, random_node.y], 1)
+            nn = self.tree[index]
             newnode = self.take_step(nn, random_node)
 
             # adding connection to tree if collisionfree
