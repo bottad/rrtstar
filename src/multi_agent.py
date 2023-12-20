@@ -98,7 +98,10 @@ def main():
 
     agents = []
 
+    agent_number = 1
+
     for agent_nr, attribute in agents_dict.items():
+        print(f"Building RRTstar-tree for agent {agent_number}:\r\n")
         x0 = attribute["state"]
         #print(x0)
         start = [x0['x'], x0['y']]
@@ -117,12 +120,16 @@ def main():
         agent.RRT.build_tree()
 
         agents.append(agent)
+        agent_number += 1
 
     running = True
+    agent_number = 1
 
     for agent in agents:
+        print(f"[INFO]\t######## Solving path for agent {agent_number}: ########\n\r")
         run_agent = True
         draw_goal(pygame, screen, shift_goal(agent.goal, bounds), agent.goal_radius)
+        print("Choose goal by clicking on it on the screen...\r\n")
         while run_agent:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -132,17 +139,20 @@ def main():
                     start = pygame.mouse.get_pos()
                     draw_start(pygame, screen, start)
                     agent.RRT.set_start(back_shift_start(start, bounds))
-                    if agent.RRT.check_goal_reachable():
+                    if agent.RRT.solve():
                         path = agent.RRT.path
                         draw_path(pygame, screen, path, bounds)
+                    run_agent= False                                # Comment this out to solve multiple paths per agent
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_RETURN or event.key == pygame.K_KP_ENTER:
-                        print("[INFO]\tSolving path for next agent:\n\r")
                         run_agent = False
             if not running:
                 break
         if not running:
             break
+        agent_number += 1
+
+    print("... No more agents left. Close window to terminate the program!\n\r")
 
     # main loop
     while running:

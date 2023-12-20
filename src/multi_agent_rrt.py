@@ -62,7 +62,7 @@ class RRT_Solver:
         startstate = None
     ):
         self.tree = []
-        self.path = []
+        self.path = []          # list of path coordinate points ([x, y])
         if startstate != None:
             self.start = Node(startstate[0], startstate[1])
         else:
@@ -178,7 +178,6 @@ class RRT_Solver:
             self.construct_path()
             return True
         else:
-            # No path to obstacle found!
             print("[WARNING]\t... No path to goal found!\r\n")
             return False
 
@@ -251,7 +250,7 @@ class RRT_Solver:
         #print("[INFO]\t... complete!\r\n")
 
     def build_tree(self):
-        print("[INFO]\tStart building the RRt* tree: ...")
+        print("[INFO]\tStart building the RRT* tree: ...")
         for i in range(self.NUMNODES):
             random_node = self.get_random_node()
             # connecting to nearest neighbor

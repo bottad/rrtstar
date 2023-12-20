@@ -31,10 +31,7 @@ def shift_point(x, y, xlim, ylim):
     return [new_x, new_y]
 
 class RRT_Solver:
-    tree = []
     obstacles: shapely.STRtree  # STRtree of shapely objects
-
-    path = []                   # list of path coordinate points ([x, y])
 
     start: Node                 # node
     goal_geo: BaseGeometry      # shapely polygon
@@ -63,6 +60,8 @@ class RRT_Solver:
         radius=1,
         startstate = None
     ):
+        self.tree = []
+        self.path = []          # list of path coordinate points ([x, y])
         self.start = Node(startstate[0], startstate[1])
         self.goal_geo = goalregion
         goal_center = self.goal_geo.centroid
@@ -180,7 +179,7 @@ class RRT_Solver:
             self.construct_path(self.goal, pygame, screen)
             return True
         else:
-            # No path to obstacle found!
+            print("[WARNING]\t... No path to goal found!\r\n")
             return False
 
     def construct_path(self, goal_node, pygame, screen):
@@ -223,7 +222,7 @@ class RRT_Solver:
         return self.check_goal_reachable(pygame, screen)
 
     def solve(self, pygame, screen):
-        print("[INFO]\tStart building the RRt* tree: ...")
+        print("[INFO]\tStart building the RRT* tree: ...")
         for i in range(self.NUMNODES):
             random_node = self.get_random_node()
             nn = self.tree[0]
