@@ -210,7 +210,7 @@ class RRT_Solver:
                     nn = p
             newnode = self.take_step(nn, random_node)
 
-            if self.collision_check(nn, random_node):
+            if self.collision_check(nn, newnode):
                 newnode, nn = self.choose_parent(nn, newnode)
                 
                 self.tree.append(newnode)
@@ -233,7 +233,7 @@ class RRT_Solver:
             newnode = self.take_step(nn, random_node)
 
             # adding connection to tree if collisionfree
-            if self.collision_check(nn, random_node):
+            if self.collision_check(nn, newnode):
                 newnode, nn = self.choose_parent(nn, newnode)
                 
                 self.tree.append(newnode)

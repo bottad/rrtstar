@@ -1,5 +1,6 @@
 import random, math
-from math import sqrt, cos, sin, atan2
+from math import sqrt, cos, sin
+import numpy as np
 import shapely
 from scipy import spatial
 
@@ -88,8 +89,8 @@ class RRT_Solver:
 
         return Node(rand_x, rand_y)
     
-    def get_nearest_neighbors_to_start(self, n):
-        _, indices = self.kdtree.query([self.start.x, self.start.y], n)
+    def get_nearest_neighbors_to_goal(self, n):
+        _, indices = self.kdtree.query([self.goal.x, self.goal.y], n)
 
         # Retrieve the nearest neighbors and their costs
         n_nearest_neighbors = [self.tree[i] for i in indices]
@@ -210,7 +211,7 @@ class RRT_Solver:
             nn = self.tree[index]
             newnode = self.take_step(nn, random_node)
 
-            if self.collision_check(nn, random_node):
+            if self.collision_check(nn, newnode):
                 newnode, nn = self.choose_parent(nn, newnode)
                 
                 self.tree.append(newnode)
@@ -230,10 +231,9 @@ class RRT_Solver:
             _, index = self.kdtree.query([random_node.x, random_node.y], 1)
             nn = self.tree[index]
             newnode = self.take_step(nn, random_node)
-            newnode = self.take_step(nn, random_node)
 
             # adding connection to tree if collisionfree
-            if self.collision_check(nn, random_node):
+            if self.collision_check(nn, newnode):
                 newnode, nn = self.choose_parent(nn, newnode)
                 
                 self.tree.append(newnode)

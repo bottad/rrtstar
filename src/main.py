@@ -49,9 +49,9 @@ def RRT_solver(option: RRTOptions,
             startstate = None
         ) -> bool:
     if option == RRTOptions.RRTSTAR:
-        return rrtstar_kd.RRT_Solver(goal, xlim, ylim, obstacles, robot_radius, num_nodes, epsilon, radius, startstate)
-    elif option == RRTOptions.RRTSTAR_KD:
         return rrtstar.RRT_Solver(goal, xlim, ylim, obstacles, robot_radius, num_nodes, epsilon, radius, startstate)
+    elif option == RRTOptions.RRTSTAR_KD:
+        return rrtstar_kd.RRT_Solver(goal, xlim, ylim, obstacles, robot_radius, num_nodes, epsilon, radius, startstate)
     elif option == RRTOptions.REVERSE_RRTSTAR:
         return reverse_rrtstar.RRT_Solver(goal, xlim, ylim, obstacles, robot_radius, num_nodes, epsilon, radius)
     elif option == RRTOptions.REVERSE_RRTSTAR_KD:
