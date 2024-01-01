@@ -69,7 +69,8 @@ class RRT_Solver:
         startstate = None
     ):
         self.tree = []
-        self.path = []          # list of path coordinate points ([x, y])
+        self.path = []              # list of path coordinate points ([x, y])
+        self.optimized_path = []    # list of optimized path coordinate points ([x, y])
         if startstate != None:
             self.start = Node(startstate[0], startstate[1])
         else:
@@ -160,6 +161,15 @@ class RRT_Solver:
             return False
         return True
     
+    def path_collision_check(self, p1: (int, int), p2: (int, int)) -> bool:
+        segment = shapely.LineString([p1, p2])
+        robot = segment.buffer(self.ROBOTRADIUS)
+
+        nearest_obstacle_index = self.obstacles.nearest(robot)
+        if self.obstacles.geometries.take(nearest_obstacle_index).intersects(robot):
+            return False
+        return True
+
     def choose_parent(self, nn, newnode):
         indices_within_radius = self.kdtree.query_ball_point([newnode.x, newnode.y], self.RADIUS)
 
@@ -255,6 +265,31 @@ class RRT_Solver:
         print(f"\tComputed {i} path segments", end="\r")
         print("                                        ", end="\r")
         print("[INFO]\t... complete!\r\n")
+        return True
+
+    def optimize_path(self) -> bool:
+        print("[INFO]\tOptimizing path: ...")
+        if self.path == []:
+            print("[ERROR]\t... There is no path to optimize!\r\n")
+            return False
+        current_point = (self.start.x, self.start.y)
+        opt_path = [current_point]
+        i = 1
+        j_start = 0
+        while current_point != self.path[-1]:
+            opt_step = current_point
+            for j in range(j_start, len(self.path)):
+                if self.path_collision_check(current_point, self.path[j]):
+                    opt_step = self.path[j]
+                    j_start = j
+            print(f"\tComputed {i} optimized path segments", end="\r")
+            i += 1
+            current_point = opt_step
+            opt_path.append(current_point)
+        print(f"\tComputed {i} optimized path segments", end="\r")
+        print("                                        ", end="\r")
+        self.optimized_path = opt_path
+        print(f"[INFO]\t... complete!\r\n")
         return True
 
     def extend_tree(self, iter) -> bool:

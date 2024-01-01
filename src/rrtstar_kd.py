@@ -90,6 +90,11 @@ class RRT_Solver:
         return Node(rand_x, rand_y)
     
     def get_nearest_neighbors_to_goal(self, n):
+        if n > len(self.tree):
+            n = len(self.tree)
+            if n == 1:
+                return [self.tree[0]]
+            
         _, indices = self.kdtree.query([self.goal.x, self.goal.y], n)
 
         # Retrieve the nearest neighbors and their costs
