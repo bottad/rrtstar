@@ -1,6 +1,10 @@
 # RRT* Implementation
 
-This is a simple implementation of the RRT* algorithm. As it does not use any optimized tree structure it is pretty slow.
+This are a few simple implementations of the RRT* algorithm.
+- Starting the tree from the start trying to find a path to the goal (rrtstar.py)
+- Starting the tree from the goal, to find paths from any start location (reverse_rrtstar)
+- Using Scipy cKDtrees to speed up the nearest neighbor search (_kd)
+
 Pygame is used for visualization purposes.
 
 ## Installation
@@ -19,8 +23,14 @@ pip install -r requirements.txt
 
 ## Use
 
-Define your map configuration in a config.yaml file in the config folder and choose your config file in the main file code. Also deside on whether to import rrtstar.py or reverse_rrtstar in main.py, to eighter start the tree generation from the start or the goal. Then run the main file as follows:
+Define your map configuration in a config.yaml file in the config folder and choose your config file in the main file code. To deside which rrt version should be run, start the main program with eigther one or both of the following flags:
+- kd -> using kd-tree datastructure
+- r  -> reverse mode
+
+The order of the Flags does not matter.
+
+### Example:
 
 ```
-python src/main.py
+python src/main.py kd r
 ```

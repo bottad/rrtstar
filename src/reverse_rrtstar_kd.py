@@ -1,13 +1,14 @@
 import random, math
 from math import sqrt, cos, sin, atan2
 import shapely
-import heapq
 from scipy import spatial
 import numpy as np
 
 from shapely.geometry.base import BaseGeometry
 
 import colors
+
+import time
 
 class Node:
     x = 0
@@ -33,11 +34,8 @@ def shift_point(x, y, xlim, ylim):
     return [new_x, new_y]
 
 class RRT_Solver:
-    tree = []
     kdtree: spatial.cKDTree     # KDtree to store the sampled points
     obstacles: shapely.STRtree  # STRtree of shapely objects
-
-    path = []                   # list of path coordinate points ([x, y])
 
     start: Node                 # node
     goal_geo: BaseGeometry      # shapely polygon
@@ -66,8 +64,13 @@ class RRT_Solver:
         radius=1,
         startstate = None
     ):
+        self.tree = []
+        self.path = []          # list of path coordinate points ([x, y])
+        self.optimized_path = []    # list of optimized path coordinate points ([x, y])
         if startstate != None:
             self.start = Node(startstate[0], startstate[1])
+        else:
+            self.start = None
         self.goal_geo = goalregion
         goal_center = self.goal_geo.centroid
         self.goal = Node(goal_center.x, goal_center.y)
@@ -116,6 +119,15 @@ class RRT_Solver:
 
     def collision_check(self, n1: Node, n2: Node) -> bool:
         segment = shapely.LineString([[n1.x, n1.y], [n2.x, n2.y]])
+        robot = segment.buffer(self.ROBOTRADIUS)
+
+        nearest_obstacle_index = self.obstacles.nearest(robot)
+        if self.obstacles.geometries.take(nearest_obstacle_index).intersects(robot):
+            return False
+        return True
+    
+    def path_collision_check(self, p1: (int, int), p2: (int, int)) -> bool:
+        segment = shapely.LineString([p1, p2])
         robot = segment.buffer(self.ROBOTRADIUS)
 
         nearest_obstacle_index = self.obstacles.nearest(robot)
@@ -182,7 +194,7 @@ class RRT_Solver:
             self.construct_path(self.start, pygame, screen)
             return True
         else:
-            # No path to obstacle found!
+            print("[WARNING]\t... No path to goal found!\r\n")
             return False
 
     def construct_path(self, start_node, pygame, screen):
@@ -203,16 +215,47 @@ class RRT_Solver:
         print("                                        ", end="\r")
         print("[INFO]\t... complete!\r\n")
 
+        self.optimize_path(pygame, screen)
+
+    def optimize_path(self, pygame, screen) -> bool:
+        print("[INFO]\tOptimizing path: ...")
+        start_time = time.time()
+        if self.path == []:
+            print("[ERROR]\t... There is no path to optimize!\r\n")
+            return False
+        current_point = (self.start.x, self.start.y)
+        opt_path = [current_point]
+        i = 1
+        j_start = 0
+        while current_point != self.path[-1]:
+            opt_step = current_point
+            for j in range(j_start, len(self.path)):
+                if self.path_collision_check(current_point, self.path[j]):
+                    opt_step = self.path[j]
+                    j_start = j
+            print(f"\tComputed {i} optimized path segments", end="\r")
+            i += 1
+            pygame.draw.line(screen, colors.GREEN, shift_point(current_point[0], current_point[1], self.XLIMIT, self.YLIMIT), shift_point(opt_step[0], opt_step[1], self.XLIMIT, self.YLIMIT), 3)
+            pygame.display.update()
+            current_point = opt_step
+            opt_path.append(current_point)
+        end_time = time.time()
+        print(f"\tComputed {i} optimized path segments", end="\r")
+        print("                                        ", end="\r")
+        elapsed_time = end_time - start_time
+        self.optimized_path = opt_path
+        print(f"[INFO]\t... completed in {elapsed_time} seconds!\r\n")
+        return True
+
     def extend_tree(self, iter, pygame, screen) -> bool:
         for i in range(iter):
             random_node = self.get_random_node()
-            nn = self.tree[0]
-            for p in self.tree:
-                if distance(p, random_node) < distance(nn, random_node):
-                    nn = p
+            # connecting to nearest neighbor
+            _, index = self.kdtree.query([random_node.x, random_node.y], 1)
+            nn = self.tree[index]
             newnode = self.take_step(nn, random_node)
 
-            if self.collision_check(nn, random_node):
+            if self.collision_check(nn, newnode):
                 newnode, nn = self.choose_parent(nn, newnode)
                 
                 self.tree.append(newnode)
@@ -254,18 +297,16 @@ class RRT_Solver:
         #print("[INFO]\t... complete!\r\n")
 
     def build_tree(self, pygame, screen):
-        print("[INFO]\tStart building the RRt* tree: ...")
+        print("[INFO]\tStart building the RRT* tree: ...")
         for i in range(self.NUMNODES):
             random_node = self.get_random_node()
-            nn = self.tree[0]
             # connecting to nearest neighbor
-            for p in self.tree:
-                if distance(p, random_node) < distance(nn, random_node):
-                    nn = p
+            _, index = self.kdtree.query([random_node.x, random_node.y], 1)
+            nn = self.tree[index]
             newnode = self.take_step(nn, random_node)
 
             # adding connection to tree if collisionfree
-            if self.collision_check(nn, random_node):
+            if self.collision_check(nn, newnode):
                 newnode, nn = self.choose_parent(nn, newnode)
                 
                 self.tree.append(newnode)

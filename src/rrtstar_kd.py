@@ -1,7 +1,8 @@
 import random, math
-from math import sqrt, cos, sin, atan2
+from math import sqrt, cos, sin
+import numpy as np
 import shapely
-import heapq
+from scipy import spatial
 
 from shapely.geometry.base import BaseGeometry
 
@@ -31,6 +32,7 @@ def shift_point(x, y, xlim, ylim):
     return [new_x, new_y]
 
 class RRT_Solver:
+    kdtree: spatial.cKDTree     # KDtree to store the sampled points
     obstacles: shapely.STRtree  # STRtree of shapely objects
 
     start: Node                 # node
@@ -66,9 +68,11 @@ class RRT_Solver:
         self.goal_geo = goalregion
         goal_center = self.goal_geo.centroid
         self.goal = Node(goal_center.x, goal_center.y)
+        # Initialize tree with start state
         self.tree.append(
             self.start
-        )  # Initialize tree with start state
+        )
+        self.kdtree = spatial.cKDTree([[goal_center.x, goal_center.y]])
         self.obstacles = obstacles
         self.XLIMIT = xlim
         self.XDIM = xlim[1] - xlim[0]
@@ -86,25 +90,16 @@ class RRT_Solver:
         return Node(rand_x, rand_y)
     
     def get_nearest_neighbors_to_goal(self, n):
-        nn_heap = []  # Min heap to store the n closest neighbors
-        heapq.heapify(nn_heap)
+        if n > len(self.tree):
+            n = len(self.tree)
+            if n == 1:
+                return [self.tree[0]]
+            
+        _, indices = self.kdtree.query([self.goal.x, self.goal.y], n)
 
-        for p in self.tree:
-            dist = distance(p, self.goal)
-
-            if len(nn_heap) < n:
-                heapq.heappush(nn_heap, (-dist, p))
-            else:
-                # If the distance is smaller than the largest distance in the heap,
-                # replace the largest distance with the current point
-                if dist < -nn_heap[0][0]:
-                    heapq.heappop(nn_heap)
-                    heapq.heappush(nn_heap, (-dist, p))
-
-        # Extract the points from the heap
-        n_closest_neighbors = [point for (_, point) in nn_heap]
-
-        return n_closest_neighbors
+        # Retrieve the nearest neighbors and their costs
+        n_nearest_neighbors = [self.tree[i] for i in indices]
+        return n_nearest_neighbors
 
     def take_step(self, n1: Node, n2: Node):
         if distance(n1, n2) < self.EPSILON:
@@ -127,11 +122,14 @@ class RRT_Solver:
         return True
 
     def choose_parent(self, nn, newnode):
-        for p in self.tree:
-            if (
-                self.collision_check(p, newnode)
-                and distance(p, newnode) < self.RADIUS
-                and p.cost + distance(p, newnode) < nn.cost + distance(nn, newnode)
+        indices_within_radius = self.kdtree.query_ball_point([newnode.x, newnode.y], self.RADIUS)
+
+        # Retrieve the nodes within the radius
+        nodes_within_radius = [self.tree[i] for i in indices_within_radius]
+
+        for p in nodes_within_radius:
+            if (self.collision_check(p, newnode)
+            and p.cost + distance(p, newnode) < nn.cost + distance(nn, newnode)
             ):
                 nn = p
         newnode.cost = nn.cost + distance(nn, newnode)
@@ -139,18 +137,18 @@ class RRT_Solver:
         return newnode, nn
 
     def re_wire(self, newnode, pygame, screen):
-        for i in range(len(self.tree)):
-            p = self.tree[i]
-            if (
-                self.collision_check(p, newnode)
+        indices_within_radius = self.kdtree.query_ball_point([newnode.x, newnode.y], self.RADIUS)
+
+        for index in indices_within_radius:
+            p = self.tree[index]
+            if (self.collision_check(p, newnode)
                 and p != newnode.parent
-                and distance(p, newnode) < self.RADIUS
                 and newnode.cost + distance(p, newnode) < p.cost
             ):
                 pygame.draw.line(screen, colors.WHITE, shift_point(p.x,p.y, self.XLIMIT, self.YLIMIT), shift_point(p.parent.x, p.parent.y, self.XLIMIT, self.YLIMIT), 2)
                 p.set_parent(newnode)
                 p.cost = newnode.cost + distance(p, newnode)
-                self.tree[i] = p
+                self.tree[index] = p
                 pygame.draw.line(screen, colors.BLACK, shift_point(p.x,p.y, self.XLIMIT, self.YLIMIT), shift_point(newnode.x, newnode.y, self.XLIMIT, self.YLIMIT))
 
     def check_goal_reachable(self, pygame, screen) -> bool:
@@ -158,7 +156,7 @@ class RRT_Solver:
         print("[INFO]\tChecking if goal reached: ...")
         nn = self.tree[0]
         # choose n closest nodes
-        nearest_neighbors = self.get_nearest_neighbors_to_goal(50)
+        nearest_neighbors = self.get_nearest_neighbors_to_goal(10)
         # check which of the paths is the shortest by adding cost from node and distance to start
         min_cost = float('inf')
         best_neigbor = None
@@ -174,6 +172,7 @@ class RRT_Solver:
             self.goal.cost = min_cost
             self.goal.set_parent(best_neigbor)
             self.tree.append(self.goal)
+            self.build_kd_tree()
             print("[INFO]\t... reached goal sucessfully!\r\n")
 
             self.construct_path(self.goal, pygame, screen)
@@ -201,19 +200,27 @@ class RRT_Solver:
         print("                                        ", end="\r")
         print("[INFO]\t... complete!\r\n")
 
+    def build_kd_tree(self):
+        #print("[INFO]\tStart building the KD-tree: ...")
+        # Extract x, y coordinates from nodes and organize them into a NumPy array
+        coordinates = np.array([(node.x, node.y) for node in self.tree])
+
+        # Build cKDTree from the NumPy array
+        self.kdtree = spatial.cKDTree(coordinates)
+        #print("[INFO]\t... complete!\r\n")
+
     def extend_tree(self, iter, pygame, screen) -> bool:
         for i in range(iter):
             random_node = self.get_random_node()
-            nn = self.tree[0]
-            for p in self.tree:
-                if distance(p, random_node) < distance(nn, random_node):
-                    nn = p
+            _, index = self.kdtree.query([random_node.x, random_node.y], 1)
+            nn = self.tree[index]
             newnode = self.take_step(nn, random_node)
 
             if self.collision_check(nn, newnode):
                 newnode, nn = self.choose_parent(nn, newnode)
                 
                 self.tree.append(newnode)
+                self.build_kd_tree()
                 pygame.draw.line(screen, colors.BLACK, shift_point(nn.x, nn.y, self.XLIMIT, self.YLIMIT), shift_point(newnode.x, newnode.y, self.XLIMIT, self.YLIMIT))
                 self.re_wire(newnode, pygame, screen)
                 pygame.display.update()
@@ -225,11 +232,9 @@ class RRT_Solver:
         print("[INFO]\tStart building the RRT* tree: ...")
         for i in range(self.NUMNODES):
             random_node = self.get_random_node()
-            nn = self.tree[0]
-            # connecting new node with closest neighbor
-            for p in self.tree:
-                if distance(p, random_node) < distance(nn, random_node):
-                    nn = p
+            # connect random_node to closest node
+            _, index = self.kdtree.query([random_node.x, random_node.y], 1)
+            nn = self.tree[index]
             newnode = self.take_step(nn, random_node)
 
             # adding connection to tree if collisionfree
@@ -237,6 +242,7 @@ class RRT_Solver:
                 newnode, nn = self.choose_parent(nn, newnode)
                 
                 self.tree.append(newnode)
+                self.build_kd_tree()
                 pygame.draw.line(screen, colors.BLACK, shift_point(nn.x, nn.y, self.XLIMIT, self.YLIMIT), shift_point(newnode.x, newnode.y, self.XLIMIT, self.YLIMIT))
                 # optimize tree with respect to new connection
                 self.re_wire(newnode, pygame, screen)
