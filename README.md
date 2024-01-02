@@ -4,6 +4,7 @@ This are a few simple implementations of the RRT* algorithm.
 - Starting the tree from the start trying to find a path to the goal (rrtstar.py)
 - Starting the tree from the goal, to find paths from any start location (reverse_rrtstar)
 - Using Scipy cKDtrees to speed up the nearest neighbor search (_kd)
+- A simple method to generate evading manouvers using the reverse RRT* algorithm (multi_agent_rrt.py)
 
 Pygame is used for visualization purposes.
 
@@ -33,4 +34,11 @@ The order of the Flags does not matter.
 
 ```
 python src/main.py kd r
+```
+In order to run the multi agent planner that implements a rather unrobust evading mechanism run muly_agent.py. In there you can also specify which config file should be loaded.
+
+### Example:
+
+```
+python src/multi_agent.py
 ```
