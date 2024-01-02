@@ -28,14 +28,14 @@ Define your map configuration in a config.yaml file in the config folder and cho
 - kd -> using kd-tree datastructure
 - r  -> reverse mode
 
-The order of the Flags does not matter.
+The order of the Flags does not matter. Those flags can also be specifyed in the launch.json file contained in the .vscode/ folder to correctly run the debugger.
 
 ### Example:
 
 ```
 python src/main.py kd r
 ```
-In order to run the multi agent planner that implements a rather unrobust evading mechanism run muly_agent.py. In there you can also specify which config file should be loaded.
+In order to run the multi agent planner that implements a rather unrobust evading mechanism run muly_agent.py. In there you can also specify which config file should be loaded. Here no launch.jason file is provided, because it is not neccessary as there are no arguments that would need to be specified.
 
 ### Example:
 
