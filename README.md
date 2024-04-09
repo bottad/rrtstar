@@ -1,6 +1,6 @@
 # RRT* Implementation
 
-This are a few simple implementations of the RRT* algorithm.
+These are a few simple implementations of the RRT* algorithm.
 - Starting the tree from the start trying to find a path to the goal (rrtstar.py)
 - Starting the tree from the goal, to find paths from any start location (reverse_rrtstar)
 - Using Scipy cKDtrees to speed up the nearest neighbor search (_kd)
